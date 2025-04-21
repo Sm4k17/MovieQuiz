@@ -2,10 +2,8 @@ import UIKit
 
 final class MovieQuizViewController: UIViewController {
     
-    // переменная с индексом текущего вопроса, начальное значение 0
-    // (по этому индексу будем искать вопрос в массиве, где индекс первого элемента 0, а не 1)
+    // Состояние текущего и правильно вопроса
     private var currentQuestionIndex: Int = .zero
-    // переменная со счётчиком правильных ответов, начальное значение закономерно 0
     private var correctAnswers: Int = .zero
     
     // MARK: - Outlets
@@ -18,7 +16,7 @@ final class MovieQuizViewController: UIViewController {
     // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
-        // берём текущий вопрос из массива вопросов по индексу текущего вопроса
+        // Берём текущий вопрос из массива вопросов по индексу текущего вопроса
         let currentQuestion = questions[currentQuestionIndex]
         show(quiz: convert(model: currentQuestion))
         //        setupUI()
@@ -28,13 +26,15 @@ final class MovieQuizViewController: UIViewController {
     //        label.font = UIFont(name: "YSDisplay-Bold", size: 43)
     //    }
     
-    // MARK: -  Struct
+    // MARK: -  Strtruct
+    // "Вопрос показан"
     private struct QuizStepViewModel {
         let image: UIImage
         let question: String
         let questionNumber: String
     }
     
+    // "Результат квиза"
     private struct QuizResultsViewModel {
         let title: String
         let text: String
@@ -51,7 +51,7 @@ final class MovieQuizViewController: UIViewController {
         let correctAnswer: Bool
     }
     
-    // массив вопросов
+    // Массив вопросов
     private let questions: [QuizQuestion] = [
         QuizQuestion(image: "The Godfather", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: true),
         QuizQuestion(image: "The Dark Knight", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: true),
@@ -83,7 +83,7 @@ final class MovieQuizViewController: UIViewController {
     }
     
     // MARK: - Private Methods
-    // метод конвертации, который принимает моковый вопрос и возвращает вью модель для экрана вопроса
+    // Метод конвертации, который принимает моковый вопрос и возвращает вью модель для экрана вопроса
     private func convert(model: QuizQuestion) -> QuizStepViewModel {
         let questionStep = QuizStepViewModel(
             image: UIImage(named: model.image) ?? UIImage(),
@@ -92,14 +92,14 @@ final class MovieQuizViewController: UIViewController {
         return questionStep
     }
     
-    // приватный метод вывода на экран вопроса, который принимает на вход вью модель вопроса и ничего не возвращает
+    // Приватный метод вывода на экран вопроса, который принимает на вход вью модель вопроса и ничего не возвращает
     private func show(quiz step: QuizStepViewModel) {
         imageView.image = step.image
         textLabel.text = step.question
         counterLabel.text = step.questionNumber
     }
     
-    // приватный метод, который меняет цвет рамки
+    // Приватный метод, который меняет цвет рамки
     private func showAnswerResult(isCorrect: Bool) {
         if isCorrect {
             correctAnswers += 1
@@ -114,14 +114,16 @@ final class MovieQuizViewController: UIViewController {
         }
     }
     
-    // приватный метод, который содержит логику перехода в один из сценариев
+    // Приватный метод, который содержит логику перехода в один из сценариев
     private func showNextQuestionOrResults() {
         if currentQuestionIndex == questions.count - 1 {
+            //содержимое 
             let text = "Ваш результат: \(correctAnswers)/\(questions.count)"
             let viewModel = QuizResultsViewModel(
                 title: "Этот раунд окончен!",
                 text: text,
                 buttonText: "Сыграть ещё раз")
+            //->
             showResults(quiz: viewModel)
         } else {
             currentQuestionIndex += 1
@@ -132,18 +134,18 @@ final class MovieQuizViewController: UIViewController {
         }
     }
     
-    //отображение результатов в сплывающем алерте
+    // Отображение результатов в сплывающем окне (чтобы не усложнять метод showNextQuestionOrResults, вывели алерты в отдельный)
     private func showResults(quiz result: QuizResultsViewModel) {
         let alert = UIAlertController(
             title: result.title,
             message: result.text,
-            preferredStyle: .alert)
+            preferredStyle: .alert) //actionSheet (выход снизу)
         
         let action = UIAlertAction(title: result.buttonText, style: .default) { _ in
-            
+            //reset game
             self.currentQuestionIndex = .zero
             self.correctAnswers = .zero
-            
+            // заново показываем первый вопрос
             let firstQuestion = self.questions[self.currentQuestionIndex]
             let viewModel = self.convert(model: firstQuestion)
             self.show(quiz: viewModel)
