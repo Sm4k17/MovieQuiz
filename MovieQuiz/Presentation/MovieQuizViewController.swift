@@ -10,7 +10,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     private var currentQuestion: QuizQuestion?
     
     private var alertPresenter: AlertPresenter?
-    
+    private var statisticService: StatisticServiceProtocol?
     // Состояние текущего и правильно вопроса
     private var currentQuestionIndex: Int = .zero
     private var correctAnswers: Int = .zero
@@ -26,7 +26,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         alertPresenter = AlertPresenter(viewController: self)
-        
+        statisticService = StatisticService()
         questionFactory = QuestionFactory(delegate: self)
         guard let questionFactory = questionFactory else { return }
         questionFactory.requestNextQuestion()
@@ -41,8 +41,9 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         currentQuestion = question
         let viewModel = convert(model: question)
         
-        DispatchQueue.main.async { [weak self] in
-            self?.show(quiz: viewModel)
+        DispatchQueue.main.async { [weak self] in // Исключение как и UIView.animate (можно ведь не ставить слабую ссылку ?)
+            guard let self = self else { return }
+            self.show(quiz: viewModel)
         }
     }
     
@@ -91,7 +92,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         imageView.layer.masksToBounds = true
         imageView.layer.borderColor = isCorrect ? UIColor.ypGreen.cgColor : UIColor.ypRed.cgColor
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in // Исключение как и UIView.animate (можно ведь не ставить слабую ссылку ?)
             guard let self = self else { return }
             self.showNextQuestionOrResults()
             self.imageView.layer.borderColor = UIColor.clear.cgColor
@@ -105,6 +106,9 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
             let text = correctAnswers == questionsAmount ?
             "Поздравляем, вы ответили на 10 из 10!" :
             "Вы ответили на \(correctAnswers) из 10, попробуйте ещё раз!"
+            
+            statisticService?.store(correct: correctAnswers, total: questionsAmount)
+            
             let viewModel = QuizResultsViewModel(
                 title: "Этот раунд окончен!",
                 text: text,
@@ -120,21 +124,21 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     // Отображение результатов в сплывающем окне (чтобы не усложнять метод showNextQuestionOrResults, вывели алерты в отдельный)
     private func showResults(quiz result: QuizResultsViewModel) {
-        
+        let statisticText = statisticService?.getStatisticsText(correct: correctAnswers, total: questionsAmount) ?? "Статистики нет"
         let alertModel = AlertModel(
             title: result.title,
-            message: result.text,
+            message: statisticText,
             buttonText: result.buttonText,
             completion: { [weak self] in
-            guard let self = self else { return }
+                guard let self = self else { return }
                 
-            self.currentQuestionIndex = .zero
-            self.correctAnswers = .zero
-            self.questionFactory?.requestNextQuestion()
+                self.currentQuestionIndex = .zero
+                self.correctAnswers = .zero
+                self.questionFactory?.requestNextQuestion()
             }
-                )
+        )
         alertPresenter?.showResults(quiz: alertModel)
-            }
+    }
     
     private func updateButtonsState(isEnabled: Bool) {
         noButtonOutlets.isEnabled = isEnabled
