@@ -41,7 +41,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         currentQuestion = question
         let viewModel = convert(model: question)
         
-        DispatchQueue.main.async { [weak self] in // Исключение как и UIView.animate (можно ведь не ставить слабую ссылку ?)
+        DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.show(quiz: viewModel)
         }
@@ -92,7 +92,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         imageView.layer.masksToBounds = true
         imageView.layer.borderColor = isCorrect ? UIColor.ypGreen.cgColor : UIColor.ypRed.cgColor
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in // Исключение как и UIView.animate (можно ведь не ставить слабую ссылку ?)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in 
             guard let self = self else { return }
             self.showNextQuestionOrResults()
             self.imageView.layer.borderColor = UIColor.clear.cgColor

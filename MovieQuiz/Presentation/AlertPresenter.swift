@@ -20,8 +20,7 @@ final class AlertPresenter {
             message: result.message,
             preferredStyle: .alert) //actionSheet (выход снизу)
         
-        let action = UIAlertAction(title: result.buttonText, style: .default) { [weak self] _ in
-            guard self != nil else { return }
+        let action = UIAlertAction(title: result.buttonText, style: .default) { _ in
             result.completion?()
         }
         
