@@ -1,5 +1,6 @@
 import UIKit
 
+
 final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     //  questionsAmount — общее количество вопросов для квиза. Пусть оно будет равно десяти.
@@ -11,6 +12,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     private var alertPresenter: AlertPresenter?
     private var statisticService: StatisticServiceProtocol?
+
     // Состояние текущего и правильно вопроса
     private var currentQuestionIndex: Int = .zero
     private var correctAnswers: Int = .zero
@@ -25,6 +27,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
+
         alertPresenter = AlertPresenter(viewController: self)
         statisticService = StatisticService()
         questionFactory = QuestionFactory(delegate: self)
@@ -52,6 +55,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         guard let currentQuestion = currentQuestion else {
             return
         }
+
         let givenAnswer = true
         
         showAnswerResult(isCorrect: givenAnswer == currentQuestion.correctAnswer)
@@ -59,9 +63,11 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     }
     
     @IBAction private func noButtonClicked(_ sender: Any) {
+
         guard let currentQuestion = currentQuestion else {
             return
         }
+
         let givenAnswer = false
         
         showAnswerResult(isCorrect: givenAnswer == currentQuestion.correctAnswer)
@@ -71,10 +77,12 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     // MARK: - Private Methods
     // Метод конвертации, который принимает моковый вопрос и возвращает вью модель для экрана вопроса
     private func convert(model: QuizQuestion) -> QuizStepViewModel {
+
         QuizStepViewModel(
             image: UIImage(named: model.image) ?? UIImage(),
             question: model.text,
             questionNumber: "\(currentQuestionIndex + 1)/\(questionsAmount)")
+
     }
     
     // Приватный метод вывода на экран вопроса, который принимает на вход вью модель вопроса и ничего не возвращает
@@ -92,8 +100,10 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         imageView.layer.masksToBounds = true
         imageView.layer.borderColor = isCorrect ? UIColor.ypGreen.cgColor : UIColor.ypRed.cgColor
         
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in // Исключение как и UIView.animate (можно ведь не ставить слабую ссылку ?)
             guard let self = self else { return }
+
             self.showNextQuestionOrResults()
             self.imageView.layer.borderColor = UIColor.clear.cgColor
             self.updateButtonsState(isEnabled: true)
@@ -102,6 +112,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     // Приватный метод, который содержит логику перехода в один из сценариев
     private func showNextQuestionOrResults() {
+
         if currentQuestionIndex == questionsAmount - 1 {
             let text = correctAnswers == questionsAmount ?
             "Поздравляем, вы ответили на 10 из 10!" :
@@ -109,6 +120,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
             
             statisticService?.store(correct: correctAnswers, total: questionsAmount)
             
+
             let viewModel = QuizResultsViewModel(
                 title: "Этот раунд окончен!",
                 text: text,
@@ -117,13 +129,16 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
             showResults(quiz: viewModel)
         } else {
             currentQuestionIndex += 1
+
             self.questionFactory?.requestNextQuestion()
             
+
         }
     }
     
     // Отображение результатов в сплывающем окне (чтобы не усложнять метод showNextQuestionOrResults, вывели алерты в отдельный)
     private func showResults(quiz result: QuizResultsViewModel) {
+
         let statisticText = statisticService?.getStatisticsText(correct: correctAnswers, total: questionsAmount) ?? "Статистики нет"
         let alertModel = AlertModel(
             title: result.title,
@@ -138,6 +153,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
             }
         )
         alertPresenter?.showResults(quiz: alertModel)
+
     }
     
     private func updateButtonsState(isEnabled: Bool) {
