@@ -12,7 +12,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     private var alertPresenter: AlertPresenter?
     private var statisticService: StatisticServiceProtocol?
-
+    
     // Состояние текущего и правильно вопроса
     private var currentQuestionIndex: Int = .zero
     private var correctAnswers: Int = .zero
@@ -23,16 +23,17 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     @IBOutlet weak private var counterLabel: UILabel!
     @IBOutlet weak private var noButtonOutlets: UIButton!
     @IBOutlet weak private var yesButtonOutlets: UIButton!
+    @IBOutlet weak var activityIndicator: UIActivityIndicatorView!
     
     // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
-
         alertPresenter = AlertPresenter(viewController: self)
         statisticService = StatisticService()
-        questionFactory = QuestionFactory(delegate: self)
+        questionFactory = QuestionFactory(moviesLoader: MoviesLoader(), delegate: self)
         guard let questionFactory = questionFactory else { return }
-        questionFactory.requestNextQuestion()
+        questionFactory.loadData()
+        showLoadingIndicator()
     }
     
     // MARK: - QuestionFactoryDelegate
@@ -40,11 +41,10 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         guard let question = question else {
             return
         }
-        
         currentQuestion = question
         let viewModel = convert(model: question)
         
-        DispatchQueue.main.async { [weak self] in // Исключение как и UIView.animate (можно ведь не ставить слабую ссылку ?)
+        DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.show(quiz: viewModel)
         }
@@ -55,34 +55,31 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         guard let currentQuestion = currentQuestion else {
             return
         }
-
         let givenAnswer = true
-        
         showAnswerResult(isCorrect: givenAnswer == currentQuestion.correctAnswer)
         updateButtonsState(isEnabled: false)
     }
     
     @IBAction private func noButtonClicked(_ sender: Any) {
-
         guard let currentQuestion = currentQuestion else {
             return
         }
-
         let givenAnswer = false
-        
         showAnswerResult(isCorrect: givenAnswer == currentQuestion.correctAnswer)
         updateButtonsState(isEnabled: false)
     }
     
     // MARK: - Private Methods
+    private func showLoadingIndicator() {
+        activityIndicator.isHidden = false // говорим, что индикатор загрузки не скрыт
+        activityIndicator.startAnimating() // включаем анимацию
+    }
     // Метод конвертации, который принимает моковый вопрос и возвращает вью модель для экрана вопроса
     private func convert(model: QuizQuestion) -> QuizStepViewModel {
-
         QuizStepViewModel(
-            image: UIImage(named: model.image) ?? UIImage(),
+            image: UIImage(data: model.image) ?? UIImage(),
             question: model.text,
             questionNumber: "\(currentQuestionIndex + 1)/\(questionsAmount)")
-
     }
     
     // Приватный метод вывода на экран вопроса, который принимает на вход вью модель вопроса и ничего не возвращает
@@ -100,10 +97,9 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         imageView.layer.masksToBounds = true
         imageView.layer.borderColor = isCorrect ? UIColor.ypGreen.cgColor : UIColor.ypRed.cgColor
         
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in // Исключение как и UIView.animate (можно ведь не ставить слабую ссылку ?)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self = self else { return }
-
+            
             self.showNextQuestionOrResults()
             self.imageView.layer.borderColor = UIColor.clear.cgColor
             self.updateButtonsState(isEnabled: true)
@@ -112,7 +108,6 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     // Приватный метод, который содержит логику перехода в один из сценариев
     private func showNextQuestionOrResults() {
-
         if currentQuestionIndex == questionsAmount - 1 {
             let text = correctAnswers == questionsAmount ?
             "Поздравляем, вы ответили на 10 из 10!" :
@@ -120,25 +115,19 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
             
             statisticService?.store(correct: correctAnswers, total: questionsAmount)
             
-
             let viewModel = QuizResultsViewModel(
                 title: "Этот раунд окончен!",
                 text: text,
                 buttonText: "Сыграть ещё раз")
-            //->
             showResults(quiz: viewModel)
         } else {
             currentQuestionIndex += 1
-
             self.questionFactory?.requestNextQuestion()
-            
-
         }
     }
     
     // Отображение результатов в сплывающем окне (чтобы не усложнять метод showNextQuestionOrResults, вывели алерты в отдельный)
     private func showResults(quiz result: QuizResultsViewModel) {
-
         let statisticText = statisticService?.getStatisticsText(correct: correctAnswers, total: questionsAmount) ?? "Статистики нет"
         let alertModel = AlertModel(
             title: result.title,
@@ -153,7 +142,6 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
             }
         )
         alertPresenter?.showResults(quiz: alertModel)
-
     }
     
     private func updateButtonsState(isEnabled: Bool) {
@@ -161,4 +149,25 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         yesButtonOutlets.isEnabled = isEnabled
     }
     
+    func didLoadDataFromServer() {
+        activityIndicator.isHidden = true 
+            questionFactory?.requestNextQuestion()
+        }
+
+    func didFailToLoadData(with error: Error) {
+            showNetworkError(message: error.localizedDescription)
+        }
+    
+    private func showNetworkError(message: String) {
+           // hideLoadingIndicator()
+            
+            let model = AlertModel(title: "Ошибка",
+                                   message: message,
+                                   buttonText: "Попробовать еще раз") { [weak self] in
+                guard let self = self else { return }
+                
+                self.questionFactory?.loadData()
+            }
+        alertPresenter?.showResults(quiz: model)
+        }
 }
