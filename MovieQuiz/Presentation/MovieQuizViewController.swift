@@ -71,8 +71,10 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     // MARK: - Private Methods
     private func showLoadingIndicator() {
-        activityIndicator.isHidden = false // говорим, что индикатор загрузки не скрыт
-        activityIndicator.startAnimating() // включаем анимацию
+        DispatchQueue.main.async { [weak self] in
+            self?.activityIndicator?.isHidden = false // говорим, что индикатор загрузки не скрыт
+            self?.activityIndicator?.startAnimating() // включаем анимацию
+        }
     }
     // Метод конвертации, который принимает моковый вопрос и возвращает вью модель для экрана вопроса
     private func convert(model: QuizQuestion) -> QuizStepViewModel {
@@ -84,9 +86,15 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     // Приватный метод вывода на экран вопроса, который принимает на вход вью модель вопроса и ничего не возвращает
     private func show(quiz step: QuizStepViewModel) {
-        imageView.image = step.image
-        textLabel.text = step.question
-        counterLabel.text = step.questionNumber
+        //Добавили анимацию для плавного появления изображения
+        UIView.transition(with: imageView,
+                          duration: 0.3,
+                          options: .transitionCrossDissolve,
+                          animations: {
+            self.imageView.image = step.image
+            self.textLabel.text = step.question
+            self.counterLabel.text = step.questionNumber
+        })
     }
     
     // Приватный метод, который меняет цвет рамки
@@ -101,6 +109,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
             guard let self = self else { return }
             
             self.showNextQuestionOrResults()
+            
             self.imageView.layer.borderColor = UIColor.clear.cgColor
             self.updateButtonsState(isEnabled: true)
         }
@@ -147,27 +156,33 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     private func updateButtonsState(isEnabled: Bool) {
         noButtonOutlets.isEnabled = isEnabled
         yesButtonOutlets.isEnabled = isEnabled
+        noButtonOutlets.alpha = isEnabled ? 1 : 0.5
+        yesButtonOutlets.alpha = isEnabled ? 1 : 0.5
     }
     
     func didLoadDataFromServer() {
-        activityIndicator.isHidden = true 
-            questionFactory?.requestNextQuestion()
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.activityIndicator.stopAnimating()
+            self.activityIndicator.isHidden = true
+            self.questionFactory?.requestNextQuestion()
         }
-
+    }
+    
     func didFailToLoadData(with error: Error) {
-            showNetworkError(message: error.localizedDescription)
-        }
+        showNetworkError(message: error.localizedDescription)
+    }
     
     private func showNetworkError(message: String) {
-           // hideLoadingIndicator()
+        activityIndicator.isHidden = true
+        
+        let model = AlertModel(title: "Ошибка",
+                               message: message,
+                               buttonText: "Попробовать еще раз") { [weak self] in
+            guard let self = self else { return }
             
-            let model = AlertModel(title: "Ошибка",
-                                   message: message,
-                                   buttonText: "Попробовать еще раз") { [weak self] in
-                guard let self = self else { return }
-                
-                self.questionFactory?.loadData()
-            }
-        alertPresenter?.showResults(quiz: model)
+            self.questionFactory?.loadData()
         }
+        alertPresenter?.showResults(quiz: model)
+    }
 }

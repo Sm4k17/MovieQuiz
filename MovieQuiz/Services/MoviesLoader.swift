@@ -31,19 +31,16 @@ final class MoviesLoader: MoviesLoading {
     }
     
     // MARK: - Properties
-    private var mostPopularMoviesUrl: URL {
-        let urlString = "\(Constants.top250MoviesPath)/\(Constants.apiKey)"
-        
-        guard let url = URL(string: urlString) else {
-            assertionFailure("Failed to construct mostPopularMoviesUrl")
-            return URL(string: "about:blank")!
+        private var mostPopularMoviesUrl: URL {
+            guard let url = URL(string: "\(Constants.top250MoviesPath)/\(Constants.apiKey)") else {
+                fatalError("Failed to construct mostPopularMoviesUrl. Please check API path and key.")
+            }
+            return url
         }
-        return url
-    }
 
-    deinit {
-        cancel()
-    }
+        deinit {
+            cancel()
+        }
     
     // MARK: - Public Methods
     func loadMovies(handler: @escaping (Result<MostPopularMovies, Error>) -> Void) {
