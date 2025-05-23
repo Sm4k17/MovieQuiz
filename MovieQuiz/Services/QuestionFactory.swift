@@ -19,38 +19,75 @@ final class QuestionFactory: QuestionFactoryProtocol {
         self.moviesLoader = moviesLoader
     }
     
+    private enum QuestionType {
+        case ratingHigherThan(value: Float)
+        case ratingLowerThan(value: Float)
+        case yearAfter(value: Int)
+        case yearBefore(value: Int)
+    }
+    
+    private func generateQuestion(for movie: MostPopularMovie) -> QuizQuestion? {
+        // Выбираем случайный тип вопроса
+        let questionTypes: [QuestionType] = [
+            .ratingHigherThan(value: 7),
+            .ratingHigherThan(value: 8),
+            .ratingLowerThan(value: 6),
+            .yearAfter(value: 2010),
+            .yearBefore(value: 2000)
+        ]
+        
+        guard let randomType = questionTypes.randomElement() else { return nil }
+        
+        let (questionText, correctAnswer) = createQuestion(for: movie, type: randomType)
+        
+        do {
+            let imageData = try Data(contentsOf: movie.resizedImageURL)
+            return QuizQuestion(image: imageData,
+                                text: questionText,
+                                correctAnswer: correctAnswer)
+        } catch {
+            return nil
+        }
+    }
+    
+    private func createQuestion(for movie: MostPopularMovie, type: QuestionType) -> (text: String, correctAnswer: Bool) {
+        switch type {
+        case .ratingHigherThan(let value):
+            let rating = Float(movie.rating) ?? 0
+            return ("Рейтинг этого фильма больше чем \(value)?", rating > value)
+            
+        case .ratingLowerThan(let value):
+            let rating = Float(movie.rating) ?? 0
+            return ("Рейтинг этого фильма меньше чем \(value)?", rating < value)
+            
+        case .yearAfter(let year):
+            let movieYear = Int(movie.year) ?? 0
+            return ("Этот фильм выпущен после \(year) года?", movieYear > year)
+            
+        case .yearBefore(let year):
+            let movieYear = Int(movie.year) ?? 0
+            return ("Этот фильм выпущен до \(year) года?", movieYear < year)
+        }
+    }
+    
     // метод генерации случайного вопроса
     func requestNextQuestion() {
         DispatchQueue.global().async { [weak self] in
             guard let self = self else { return }
-            let index = (0..<self.movies.count).randomElement() ?? 0
             
-            guard let movie = self.movies[safe: index] else { return }
+            // Выбираем случайный фильм
+            guard let randomMovie = self.movies.randomElement() else { return }
             
-            var imageData = Data()
-            
-            do {
-                imageData = try Data(contentsOf: movie.resizedImageURL)
-            } catch {
-                // Обработка ошибки: передаем ошибку через делегат
+            // Генерируем вопрос
+            guard let question = self.generateQuestion(for: randomMovie) else {
                 DispatchQueue.main.async { [weak self] in
-                    self?.delegate?.didFailToLoadData(with: NSError(domain: "com.moviequiz", code: 0, userInfo: [NSLocalizedDescriptionKey: "Не удалось загрузить изображение"]))
+                    self?.delegate?.didFailToLoadData(with: NSError(domain: "com.moviequiz", code: 0, userInfo: [NSLocalizedDescriptionKey: "Не удалось сгенерировать вопрос"]))
                 }
                 return
             }
             
-            let rating = Float(movie.rating) ?? 0
-            
-            let text = "Рейтинг этого фильма больше чем 7?"
-            let correctAnswer = rating > 7
-            
-            let question = QuizQuestion(image: imageData,
-                                        text: text,
-                                        correctAnswer: correctAnswer)
-            
             DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.delegate?.didReceiveNextQuestion(question: question)
+                self?.delegate?.didReceiveNextQuestion(question: question)
             }
         }
     }

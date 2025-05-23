@@ -34,6 +34,12 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         guard let questionFactory = questionFactory else { return }
         questionFactory.loadData()
         showLoadingIndicator()
+        // Настройка imageView
+        imageView.layer.masksToBounds = true
+        imageView.layer.cornerRadius = 20
+        imageView.layer.borderWidth = 0
+        imageView.layer.borderColor = UIColor.clear.cgColor
+        imageView.backgroundColor = .clear
     }
     
     // MARK: - QuestionFactoryDelegate
@@ -78,7 +84,8 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     }
     // Метод конвертации, который принимает моковый вопрос и возвращает вью модель для экрана вопроса
     private func convert(model: QuizQuestion) -> QuizStepViewModel {
-        QuizStepViewModel(
+        _ = UIImage(data: model.image) ?? UIImage(named: "The Green Knight") ?? UIImage()
+        return QuizStepViewModel(
             image: UIImage(data: model.image) ?? UIImage(),
             question: model.text,
             questionNumber: "\(currentQuestionIndex + 1)/\(questionsAmount)")
@@ -86,6 +93,9 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     // Приватный метод вывода на экран вопроса, который принимает на вход вью модель вопроса и ничего не возвращает
     private func show(quiz step: QuizStepViewModel) {
+        // Гарантированный сброс рамки перед новым вопросом
+        imageView.layer.borderWidth = 0
+        imageView.layer.borderColor = UIColor.clear.cgColor
         //Добавили анимацию для плавного появления изображения
         UIView.transition(with: imageView,
                           duration: 0.3,
@@ -102,15 +112,26 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         if isCorrect {
             correctAnswers += 1
         }
-        imageView.layer.masksToBounds = true
+        // Настройка анимации рамки
+        let animation = CABasicAnimation(keyPath: "borderColor")
+        animation.fromValue = UIColor.clear.cgColor
+        animation.toValue = isCorrect ? UIColor.ypGreen.cgColor : UIColor.ypRed.cgColor
+        animation.duration = 0.3
+        imageView.layer.add(animation, forKey: "borderAnimation")
+        
+        imageView.layer.borderWidth = 8
         imageView.layer.borderColor = isCorrect ? UIColor.ypGreen.cgColor : UIColor.ypRed.cgColor
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self = self else { return }
             
-            self.showNextQuestionOrResults()
+            // Плавное исчезновение рамки
+            UIView.animate(withDuration: 0.3) {
+                self.imageView.layer.borderWidth = 0
+                self.imageView.layer.borderColor = UIColor.clear.cgColor
+            }
             
-            self.imageView.layer.borderColor = UIColor.clear.cgColor
+            self.showNextQuestionOrResults()
             self.updateButtonsState(isEnabled: true)
         }
     }

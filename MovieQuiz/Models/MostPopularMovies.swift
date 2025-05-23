@@ -15,6 +15,7 @@ struct MostPopularMovies: Decodable {
 struct MostPopularMovie: Decodable {
     let title: String
     let rating: String
+    let year: String
     let imageURL: URL
     
     var resizedImageURL: URL {
@@ -30,6 +31,7 @@ struct MostPopularMovie: Decodable {
     private enum CodingKeys : String, CodingKey {
         case title = "fullTitle"
         case rating = "imDbRating"
+        case year = "year"
         case imageURL = "image"
     }
 }
