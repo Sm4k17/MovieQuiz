@@ -19,12 +19,13 @@ protocol StatisticServiceProtocol {
 //Чем выносить код в MovieQuiz, модифицируем Protocol, чтобы он сам формировал статистику
 extension StatisticServiceProtocol {
     func getStatisticsText(correct count: Int, total amount: Int) -> String {
-        let score = "Ваш результат: \(count)/\(amount)"
-        let gamesCount = "Количество сыгранных квизов: \(gamesCount)"
-        let record = "Рекорд: \(bestGame.correct)/\(bestGame.total) (\(bestGame.date.dateTimeString))"
-        let totalAccuracy = "Средняя точность: \(String(format: "%.2f", totalAccuracy))%"
-        
-        return [score, gamesCount, record, totalAccuracy].joined(separator: "\n")
+        let statistics = [
+            "Ваш результат: \(count)/\(amount)",
+            "Количество сыгранных квизов: \(gamesCount)",
+            "Рекорд: \(bestGame.correct)/\(bestGame.total) (\(bestGame.date.dateTimeString))",
+            "Средняя точность: \(String(format: "%.2f", totalAccuracy))%"
+        ]
+        return statistics.joined(separator: "\n")
     }
 }
 
