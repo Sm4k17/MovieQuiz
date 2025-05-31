@@ -7,7 +7,6 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     //  questionFactory — фабрика вопросов. Контроллер будет обращаться за вопросами к ней.
     //  currentQuestion — вопрос, который видит пользователь.
     private var questionFactory: QuestionFactoryProtocol?
-    private var currentQuestion: QuizQuestion?
     
     private var alertPresenter: AlertPresenter?
     private var statisticService: StatisticServiceProtocol?
@@ -55,27 +54,16 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     // MARK: - QuestionFactoryDelegate
     func didReceiveNextQuestion(question: QuizQuestion?) {
-        guard let question = question else {
-            return
-        }
-        currentQuestion = question
-        let viewModel = presenter.convert(model: question)
-        
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.show(quiz: viewModel)
-        }
+        presenter.didReceiveNextQuestion(question: question)
     }
     
     // MARK: - Actions
     @IBAction private func yesButtonClicked(_ sender: Any) {
-        presenter.currentQuestion = currentQuestion
         presenter.yesButtonClicked()
         updateButtonsState(isEnabled: false)
     }
     
     @IBAction private func noButtonClicked(_ sender: Any) {
-        presenter.currentQuestion = currentQuestion
         presenter.noButtonClicked()
         updateButtonsState(isEnabled: false)
     }
@@ -89,7 +77,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     }
     
     // Приватный метод вывода на экран вопроса, который принимает на вход вью модель вопроса и ничего не возвращает
-    private func show(quiz step: QuizStepViewModel) {
+     func show(quiz step: QuizStepViewModel) {
         // Гарантированный сброс рамки перед новым вопросом
         imageView.layer.borderWidth = 0
         imageView.layer.borderColor = UIColor.clear.cgColor
@@ -109,6 +97,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         if isCorrect {
             correctAnswers += 1
         }
+        
         // Настройка анимации рамки
         let animation = CABasicAnimation(keyPath: "borderColor")
         animation.fromValue = UIColor.clear.cgColor
@@ -128,7 +117,11 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
                 self.imageView.layer.borderColor = UIColor.clear.cgColor
             }
             
-            self.showNextQuestionOrResults()
+            // Обновляем состояние через presenter
+            self.presenter.correctAnswers = self.correctAnswers
+            self.presenter.questionFactory = self.questionFactory
+            self.presenter.showNextQuestionOrResults()
+            
             self.updateButtonsState(isEnabled: true)
         }
     }
@@ -153,7 +146,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     }
     
     // Отображение результатов в сплывающем окне (чтобы не усложнять метод showNextQuestionOrResults, вывели алерты в отдельный)
-    private func showResults(quiz result: QuizResultsViewModel) {
+     func showResults(quiz result: QuizResultsViewModel) {
         let statisticText = statisticService?.getStatisticsText(correct: correctAnswers, total: presenter.questionsAmount) ?? "Статистики нет"
         let alertModel = AlertModel(
             title: result.title,
