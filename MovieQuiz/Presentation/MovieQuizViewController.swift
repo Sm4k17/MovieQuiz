@@ -28,17 +28,18 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
-            configureDependencies()
-            configureUI()
-            startInitialDataLoad()
-        }
+        configureDependencies()
+        configureUI()
+        startInitialDataLoad()
+    }
     
     private func configureDependencies() {
         alertPresenter = AlertPresenter(viewController: self)
+        presenter.viewController = self
         statisticService = StatisticService()
         questionFactory = QuestionFactory(moviesLoader: MoviesLoader(), delegate: self)
     }
-
+    
     private func configureUI() {
         imageView.layer.masksToBounds = true
         imageView.layer.cornerRadius = 20
@@ -46,7 +47,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         imageView.layer.borderColor = UIColor.clear.cgColor
         imageView.backgroundColor = .clear
     }
-
+    
     private func startInitialDataLoad() {
         questionFactory?.loadData()
         showLoadingIndicator()
@@ -68,20 +69,14 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     
     // MARK: - Actions
     @IBAction private func yesButtonClicked(_ sender: Any) {
-        guard let currentQuestion = currentQuestion else {
-            return
-        }
-        let givenAnswer = true
-        showAnswerResult(isCorrect: givenAnswer == currentQuestion.correctAnswer)
+        presenter.currentQuestion = currentQuestion
+        presenter.yesButtonClicked()
         updateButtonsState(isEnabled: false)
     }
     
     @IBAction private func noButtonClicked(_ sender: Any) {
-        guard let currentQuestion = currentQuestion else {
-            return
-        }
-        let givenAnswer = false
-        showAnswerResult(isCorrect: givenAnswer == currentQuestion.correctAnswer)
+        presenter.currentQuestion = currentQuestion
+        presenter.noButtonClicked()
         updateButtonsState(isEnabled: false)
     }
     
@@ -110,7 +105,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     }
     
     // Приватный метод, который меняет цвет рамки
-    private func showAnswerResult(isCorrect: Bool) {
+    func showAnswerResult(isCorrect: Bool) {
         if isCorrect {
             correctAnswers += 1
         }

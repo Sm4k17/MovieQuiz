@@ -47,12 +47,18 @@ final class MoviesLoader: MoviesLoading {
         networkClient.fetch(url: top250MoviesURL) { [weak self] result in
             guard let self = self else { return }
             
-            DispatchQueue.global(qos: .userInitiated).async {
-                let decodedResult = self.decodeMovies(from: result)
-                
-                DispatchQueue.main.async {
-                    handler(decodedResult)
-                }
+            // Улучшенная обработка потока
+            let decodedResult: Result<MostPopularMovies, Error>
+            
+            switch result {
+            case .success(let data):
+                decodedResult = self.decodeMovies(from: data)
+            case .failure(let error):
+                decodedResult = .failure(self.enrichError(error))
+            }
+            
+            DispatchQueue.main.async {
+                handler(decodedResult)
             }
         }
     }
@@ -62,17 +68,17 @@ final class MoviesLoader: MoviesLoading {
     }
     
     // MARK: - Private Methods
-    private func decodeMovies(from result: Result<Data, Error>) -> Result<MostPopularMovies, Error> {
-        switch result {
-        case .success(let data):
-            do {
-                let movies = try decoder.decode(MostPopularMovies.self, from: data)
-                return .success(movies)
-            } catch {
-                return .failure(error)
-            }
-        case .failure(let error):
+    private func decodeMovies(from data: Data) -> Result<MostPopularMovies, Error> {
+        do {
+            let movies = try decoder.decode(MostPopularMovies.self, from: data)
+            return .success(movies)
+        } catch {
             return .failure(error)
         }
+    }
+    
+    private func enrichError(_ error: Error) -> Error {
+        // Можно добавить дополнительную информацию к ошибке
+        return error
     }
 }
