@@ -35,6 +35,11 @@ final class AlertPresenter {
         
         alert.addAction(action)
         
+        // Устанавливаем идентификатор доступности только для debug-сборок
+#if DEBUG
+        alert.view.accessibilityIdentifier = "GameResultsAlert"
+#endif
+        
         // Всегда выполняем презентацию на главном потоке
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
