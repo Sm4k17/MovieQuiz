@@ -9,18 +9,31 @@ import UIKit
 
 final class MovieQuizPresenter: QuestionFactoryDelegate {
     
-    let questionsAmount: Int = 10
-    private var currentQuestionIndex: Int = 0
-    var correctAnswers: Int = 0
-    var currentQuestion: QuizQuestion?
-    weak var viewController: MovieQuizViewController?
+    private weak var viewController: MovieQuizViewControllerProtocol?
     private var questionFactory: QuestionFactoryProtocol?
-    var statisticService: StatisticServiceProtocol = StatisticService()
+    private let statisticService: StatisticServiceProtocol
+    private var alertPresenter: AlertPresenterProtocol
     
-    init(viewController: MovieQuizViewController) {
+    let questionsAmount: Int = 10
+    private var currentQuestionIndex: Int = .zero
+    var correctAnswers: Int = .zero
+    var currentQuestion: QuizQuestion?
+    
+    init(
+        viewController: MovieQuizViewControllerProtocol,
+        questionFactory: QuestionFactoryProtocol? = nil,
+        statisticService: StatisticServiceProtocol = StatisticService(),
+        alertPresenter: AlertPresenterProtocol = AlertPresenter()
+    ) {
         self.viewController = viewController
-        questionFactory = QuestionFactory(moviesLoader: MoviesLoader(), delegate: self)
-        questionFactory?.loadData()
+        self.statisticService = statisticService
+        self.alertPresenter = alertPresenter
+        self.alertPresenter.viewController = viewController as? UIViewController
+        
+        // Сначала создаем фабрику, потом загружаем данные
+        let factory = questionFactory ?? QuestionFactory(moviesLoader: MoviesLoader(), delegate: self)
+        self.questionFactory = factory
+        factory.loadData() // Загружаем данные через созданную фабрику
     }
     
     // MARK: - QuestionFactoryDelegate
@@ -32,24 +45,24 @@ final class MovieQuizPresenter: QuestionFactoryDelegate {
         viewController?.hideLoadingIndicator()
         questionFactory?.requestNextQuestion()
     }
-        
+    
     func didFailToLoadData(with error: Error) {
         viewController?.hideLoadingIndicator()
         let message = error.localizedDescription
-        viewController?.showNetworkError(message: message)
+        showNetworkError(message: message)
     }
-        
-        func didReceiveNextQuestion(question: QuizQuestion?) {
-            guard let question = question else {
-                return
-            }
-            
-            currentQuestion = question
-            let viewModel = convert(model: question)
-            DispatchQueue.main.async { [weak self] in
-                self?.viewController?.show(quiz: viewModel)
-            }
+    
+    func didReceiveNextQuestion(question: QuizQuestion?) {
+        guard let question = question else {
+            return
         }
+        
+        currentQuestion = question
+        let viewModel = convert(model: question)
+        DispatchQueue.main.async { [weak self] in
+            self?.viewController?.show(quiz: viewModel)
+        }
+    }
     
     func isLastQuestion() -> Bool {
         currentQuestionIndex == questionsAmount - 1
@@ -80,44 +93,94 @@ final class MovieQuizPresenter: QuestionFactoryDelegate {
         didAnswer(isYes: false)
     }
     
-    private func didAnswer(isYes: Bool) {
-            guard let currentQuestion = currentQuestion else {
-                return
-            }
-            
-            let givenAnswer = isYes
-            
-            viewController?.showAnswerResult(isCorrect: givenAnswer == currentQuestion.correctAnswer)
+    func restartGame() {
+        currentQuestionIndex = 0
+        correctAnswers = 0
+        questionFactory?.requestNextQuestion()
+    }
+    
+    private func didAnswer(isCorrectAnswer: Bool) {
+        if isCorrectAnswer {
+            correctAnswers += 1
         }
+    }
+    
+    private func didAnswer(isYes: Bool) {
+        guard let currentQuestion = currentQuestion else {
+            return
+        }
+        
+        let givenAnswer = isYes
+        
+        proceedWithAnswer(isCorrect: givenAnswer == currentQuestion.correctAnswer)
+    }
+    
+    // Отображение результатов в сплывающем окне (чтобы не усложнять метод showNextQuestionOrResults, вывели алерты в отдельный)
+    func showResults(quiz result: QuizResultsViewModel) {
+        
+        let alertModel = AlertModel(
+            title: result.title,
+            message: result.text,  // Теперь текст формируется в Presenter
+            buttonText: result.buttonText,
+            completion: { [weak self] in
+                guard let self = self else { return }
+                self.restartGame()
+            }
+        )
+        alertPresenter.showResults(quiz: alertModel)
+    }
+    
+    func showNetworkError(message: String) {
+        viewController?.hideLoadingIndicator()
+        
+        let model = AlertModel(title: "Что-то пошло не так(",
+                               message: message,
+                               buttonText: "Попробовать еще раз") { [weak self] in
+            guard let self = self else { return }
+            self.restartGame()
+        }
+        alertPresenter.showResults(quiz: model)
+    }
     
     // Приватный метод, который содержит логику перехода в один из сценариев
-     func showNextQuestionOrResults() {
+    private func proceedToNextQuestionOrResults() {
         if self.isLastQuestion() {
+            // Сохраняем результаты текущей игры
+            statisticService.store(correct: correctAnswers, total: questionsAmount)
             
-            statisticService.store(correct: correctAnswers, total: self.questionsAmount)
-            
-            let text = "Вы ответили правильно на \(correctAnswers)/\(self.questionsAmount) вопросов"
+            // Формируем текст статистики
+            let text = """
+                    \(statisticService.getStatisticsText(correct: correctAnswers, total: questionsAmount))
+                    """
             
             let viewModel = QuizResultsViewModel(
                 title: "Этот раунд окончен!",
                 text: text,
                 buttonText: "Сыграть ещё раз")
-            viewController?.showResults(quiz: viewModel)
+            showResults(quiz: viewModel)
         } else {
             self.switchToNextQuestion()
             questionFactory?.requestNextQuestion()
         }
     }
     
-    func restartGame() {
-            currentQuestionIndex = 0
-            correctAnswers = 0
-            questionFactory?.requestNextQuestion()
+    // Приватный метод, который меняет цвет рамки
+    private func proceedWithAnswer(isCorrect: Bool) {
+        didAnswer(isCorrectAnswer: isCorrect)
+        // Настройка анимации рамки
+        let animation = CABasicAnimation(keyPath: "borderColor")
+        animation.fromValue = UIColor.clear.cgColor
+        animation.toValue = isCorrect ? UIColor.ypGreen.cgColor : UIColor.ypRed.cgColor
+        animation.duration = 0.3
+        viewController?.highlightImageBorder(isCorrectAnswer: isCorrect)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self else { return }
+            // Плавное исчезновение рамки
+            UIView.animate(withDuration: 0.3) {
+                self.viewController?.resetImageBorder()
+            }
+            self.proceedToNextQuestionOrResults()
+            self.viewController?.updateButtonsState(isEnabled: true)
         }
-    
-    func didAnswer(isCorrectAnswer: Bool) {
-             if isCorrectAnswer {
-                 correctAnswers += 1
-             }
-         }
+    }
 }

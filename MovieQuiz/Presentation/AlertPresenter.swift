@@ -7,48 +7,30 @@
 
 import UIKit
 
-final class AlertPresenter {
-    private weak var viewController: UIViewController?
-    private var isAlertPresenting = false  // Флаг для отслеживания состояния
+final class AlertPresenter: AlertPresenterProtocol {
+    weak var viewController: UIViewController?
     
-    init(viewController: UIViewController) {
-        self.viewController = viewController
-    }
-    
-    func showResults(quiz result: AlertModel) {
-        // Проверяем, не показывается ли уже алерт
-        guard !isAlertPresenting else {
-            print("Alert is already presenting, ignoring duplicate request")
-            return
-        }
+    func showResults(quiz model: AlertModel) {
         let alert = UIAlertController(
-            title: result.title,
-            message: result.message,
-            preferredStyle: .alert) //actionSheet (выход снизу)
+            title: model.title,
+            message: model.message,
+            preferredStyle: .alert
+        )
         
         let action = UIAlertAction(
-            title: result.buttonText,
-            style: .default) { [weak self] _ in
-                self?.isAlertPresenting = false  // Сбрасываем флаг при закрытии
-                result.completion?()
+            title: model.buttonText,
+            style: .default) { _ in
+                model.completion?()
             }
         
         alert.addAction(action)
         
-        // Устанавливаем идентификатор доступности только для debug-сборок
 #if DEBUG
         alert.view.accessibilityIdentifier = "GameResultsAlert"
 #endif
         
-        // Всегда выполняем презентацию на главном потоке
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Дополнительная проверка на случай race condition
-            if !self.isAlertPresenting {
-                self.isAlertPresenting = true
-                self.viewController?.present(alert, animated: true)
-            }
+            self?.viewController?.present(alert, animated: true)
         }
     }
 }
