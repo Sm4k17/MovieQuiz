@@ -41,8 +41,45 @@ final class QuestionFactory: QuestionFactoryProtocol {
     
     // MARK: - Public Methods
     func loadData() {
+        // Уведомляем делегата о начале загрузки
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.didStartLoadingData()
+        }
+        
         moviesLoader.loadMovies { [weak self] result in
-            self?.handleLoadMovies(result)
+            DispatchQueue.global().async {
+                switch result {
+                case .success(let mostPopularMovies):
+                    self?.handleMoviesSuccess(mostPopularMovies)
+                case .failure(let error):
+                    self?.handleMoviesFailure(error)
+                }
+            }
+        }
+    }
+    
+    private func handleMoviesSuccess(_ movies: MostPopularMovies) {
+        // Проверяем есть ли фильмы и нет ли ошибки от сервера
+        guard movies.errorMessage.isEmpty, !movies.items.isEmpty else {
+            let message = movies.errorMessage.isEmpty
+                ? "Нет доступных фильмов."
+                : movies.errorMessage
+            notifyError(message: message)
+            return
+        }
+        
+        self.movies = movies.items
+        
+        // Уведомляем делегата об успешной загрузке на главном потоке
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.didLoadDataFromServer()
+        }
+    }
+
+    private func handleMoviesFailure(_ error: Error) {
+        // Уведомляем делегата об ошибке на главном потоке
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.didFailToLoadData(with: error)
         }
     }
     
@@ -76,19 +113,6 @@ final class QuestionFactory: QuestionFactoryProtocol {
                 self?.delegate?.didFailToLoadData(with: error)
             }
         }
-    }
-    
-    private func handleMoviesSuccess(_ response: MostPopularMovies) {
-        guard response.errorMessage.isEmpty, !response.items.isEmpty else {
-            let message = response.errorMessage.isEmpty
-                ? "Нет доступных фильмов."
-                : response.errorMessage
-            notifyError(message: message)
-            return
-        }
-        
-        movies = response.items
-        delegate?.didLoadDataFromServer()
     }
     
     private func notifyError(message: String) {
