@@ -31,40 +31,34 @@ final class MoviesLoader: MoviesLoading {
     }
     
     // MARK: - Properties
-        private var mostPopularMoviesUrl: URL {
-            guard let url = URL(string: "\(Constants.top250MoviesPath)/\(Constants.apiKey)") else {
-                fatalError("Failed to construct mostPopularMoviesUrl. Please check API path and key.")
-            }
-            return url
+    private var top250MoviesURL: URL {
+        guard let url = URL(string: "\(Constants.top250MoviesPath)/\(Constants.apiKey)") else {
+            fatalError("Failed to construct mostPopularMoviesUrl. Please check API path and key.")
         }
-
-        deinit {
-            cancel()
-        }
+        return url
+    }
+    
+    deinit {
+        cancel()
+    }
     
     // MARK: - Public Methods
     func loadMovies(handler: @escaping (Result<MostPopularMovies, Error>) -> Void) {
-        networkClient.fetch(url: mostPopularMoviesUrl) { [weak self] result in
+        networkClient.fetch(url: top250MoviesURL) { [weak self] result in
             guard let self = self else { return }
             
-            DispatchQueue.global(qos: .userInitiated).async {
-                let decodedResult: Result<MostPopularMovies, Error>
-                
-                switch result {
-                case .success(let data):
-                    do {
-                        let mostPopularMovies = try self.decoder.decode(MostPopularMovies.self, from: data)
-                        decodedResult = .success(mostPopularMovies)
-                    } catch {
-                        decodedResult = .failure(error)
-                    }
-                case .failure(let error):
-                    decodedResult = .failure(error)
-                }
-                
-                DispatchQueue.main.async {
-                    handler(decodedResult)
-                }
+            // Улучшенная обработка потока
+            let decodedResult: Result<MostPopularMovies, Error>
+            
+            switch result {
+            case .success(let data):
+                decodedResult = self.decodeMovies(from: data)
+            case .failure(let error):
+                decodedResult = .failure(self.enrichError(error))
+            }
+            
+            DispatchQueue.main.async {
+                handler(decodedResult)
             }
         }
     }
@@ -72,5 +66,19 @@ final class MoviesLoader: MoviesLoading {
     func cancel() {
         networkClient.cancel()
     }
+    
+    // MARK: - Private Methods
+    private func decodeMovies(from data: Data) -> Result<MostPopularMovies, Error> {
+        do {
+            let movies = try decoder.decode(MostPopularMovies.self, from: data)
+            return .success(movies)
+        } catch {
+            return .failure(error)
+        }
+    }
+    
+    private func enrichError(_ error: Error) -> Error {
+        // Можно добавить дополнительную информацию к ошибке
+        return error
+    }
 }
-
