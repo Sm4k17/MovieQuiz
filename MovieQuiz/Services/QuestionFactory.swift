@@ -9,34 +9,157 @@ import Foundation
 
 final class QuestionFactory: QuestionFactoryProtocol {
     
+    // MARK: - Dependencies
+    private let moviesLoader: MoviesLoading
     private weak var delegate: QuestionFactoryDelegate?
     
-    init(delegate: QuestionFactoryDelegate) {
-        self.delegate = delegate
-    }
+    // MARK: - Properties
+    private var movies: [MostPopularMovie] = []
     
-    // Массив вопросов
-    private let questions: [QuizQuestion] = [
-        QuizQuestion(image: "The Godfather", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: true),
-        QuizQuestion(image: "The Dark Knight", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: true),
-        QuizQuestion(image: "Kill Bill", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: true),
-        QuizQuestion(image: "The Avengers", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: true),
-        QuizQuestion(image: "Deadpool", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: true),
-        QuizQuestion(image: "The Green Knight", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: true),
-        QuizQuestion(image: "Old", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: false),
-        QuizQuestion(image: "The Ice Age Adventures of Buck Wild", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: false),
-        QuizQuestion(image: "Tesla", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: false),
-        QuizQuestion(image: "Vivarium", text: "Рейтинг этого фильма больше чем 6?", correctAnswer: false),
+    // MARK: - Constants
+    private let questionTypes: [QuestionType] = [
+        .ratingHigherThan(value: 7),
+        .ratingHigherThan(value: 8),
+        .ratingLowerThan(value: 6),
+        .yearAfter(value: 2010),
+        .yearBefore(value: 2000)
     ]
     
-    // метод генерации случайного вопроса
-    func requestNextQuestion() {
-        guard let index = (0..<questions.count).randomElement() else {
-            delegate?.didReceiveNextQuestion(question: nil)
+    // MARK: - Question Type
+    private enum QuestionType {
+        case ratingHigherThan(value: Float)
+        case ratingLowerThan(value: Float)
+        case yearAfter(value: Int)
+        case yearBefore(value: Int)
+    }
+    
+    // MARK: - Initialization
+    init(moviesLoader: MoviesLoading, delegate: QuestionFactoryDelegate) {
+        self.delegate = delegate
+        self.moviesLoader = moviesLoader
+    }
+    
+    // MARK: - Public Methods
+    func loadData() {
+        // Уведомляем делегата о начале загрузки
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.didStartLoadingData()
+        }
+        
+        moviesLoader.loadMovies { [weak self] result in
+            DispatchQueue.global().async {
+                switch result {
+                case .success(let mostPopularMovies):
+                    self?.handleMoviesSuccess(mostPopularMovies)
+                case .failure(let error):
+                    self?.handleMoviesFailure(error)
+                }
+            }
+        }
+    }
+    
+    private func handleMoviesSuccess(_ movies: MostPopularMovies) {
+        // Проверяем есть ли фильмы и нет ли ошибки от сервера
+        guard movies.errorMessage.isEmpty, !movies.items.isEmpty else {
+            let message = movies.errorMessage.isEmpty
+                ? "Нет доступных фильмов."
+                : movies.errorMessage
+            notifyError(message: message)
             return
         }
         
-        let question = questions[safe: index]
-        delegate?.didReceiveNextQuestion(question: question)
+        self.movies = movies.items
+        
+        // Уведомляем делегата об успешной загрузке на главном потоке
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.didLoadDataFromServer()
+        }
+    }
+
+    private func handleMoviesFailure(_ error: Error) {
+        // Уведомляем делегата об ошибке на главном потоке
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.didFailToLoadData(with: error)
+        }
+    }
+    
+    func requestNextQuestion() {
+        DispatchQueue.global().async { [weak self] in
+            guard let self = self else { return }
+            
+            guard let randomMovie = self.movies.randomElement() else {
+                self.notifyError(message: "Нет доступных фильмов для вопроса")
+                return
+            }
+            
+            guard let question = self.generateQuestion(for: randomMovie) else {
+                self.notifyError(message: "Не удалось сгенерировать вопрос")
+                return
+            }
+            
+            DispatchQueue.main.async { [weak self] in
+                self?.delegate?.didReceiveNextQuestion(question: question)
+            }
+        }
+    }
+    
+    // MARK: - Private Methods
+    private func handleLoadMovies(_ result: Result<MostPopularMovies, Error>) {
+        DispatchQueue.main.async { [weak self] in
+            switch result {
+            case .success(let response):
+                self?.handleMoviesSuccess(response)
+            case .failure(let error):
+                self?.delegate?.didFailToLoadData(with: error)
+            }
+        }
+    }
+    
+    private func notifyError(message: String) {
+        let error = NSError(
+            domain: "com.moviequiz",
+            code: 0,
+            userInfo: [NSLocalizedDescriptionKey: message]
+        )
+        DispatchQueue.main.async { [weak self] in
+            self?.delegate?.didFailToLoadData(with: error)
+        }
+    }
+    
+    private func generateQuestion(for movie: MostPopularMovie) -> QuizQuestion? {
+        guard let randomType = questionTypes.randomElement() else { return nil }
+        
+        let (questionText, correctAnswer) = createQuestion(for: movie, type: randomType)
+        
+        do {
+            let imageData = try Data(contentsOf: movie.resizedImageURL)
+            return QuizQuestion(
+                image: imageData,
+                text: questionText,
+                correctAnswer: correctAnswer
+            )
+        } catch {
+            return nil
+        }
+    }
+    
+    private func createQuestion(for movie: MostPopularMovie, type: QuestionType) -> (text: String, correctAnswer: Bool) {
+        switch type {
+        case .ratingHigherThan(let value):
+            let rating = Float(movie.rating) ?? 0
+            return ("Рейтинг этого фильма больше чем \(value)?", rating > value)
+            
+        case .ratingLowerThan(let value):
+            let rating = Float(movie.rating) ?? 0
+            return ("Рейтинг этого фильма меньше чем \(value)?", rating < value)
+            
+        case .yearAfter(let year):
+            let movieYear = Int(movie.year) ?? 0
+            return ("Этот фильм выпущен после \(year) года?", movieYear > year)
+            
+        case .yearBefore(let year):
+            let movieYear = Int(movie.year) ?? 0
+            return ("Этот фильм выпущен до \(year) года?", movieYear < year)
+        }
     }
 }

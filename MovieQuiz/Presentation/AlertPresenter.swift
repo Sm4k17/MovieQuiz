@@ -7,25 +7,30 @@
 
 import UIKit
 
-final class AlertPresenter {
-    private weak var viewController: UIViewController?
+final class AlertPresenter: AlertPresenterProtocol {
+    weak var viewController: UIViewController?
     
-    init(viewController: UIViewController) {
-        self.viewController = viewController
-    }
-    
-    func showResults(quiz result: AlertModel) {
+    func showResults(quiz model: AlertModel) {
         let alert = UIAlertController(
-            title: result.title,
-            message: result.message,
-            preferredStyle: .alert) //actionSheet (выход снизу)
+            title: model.title,
+            message: model.message,
+            preferredStyle: .alert
+        )
         
-        let action = UIAlertAction(title: result.buttonText, style: .default) { [weak self] _ in
-            guard self != nil else { return }
-            result.completion?()
-        }
+        let action = UIAlertAction(
+            title: model.buttonText,
+            style: .default) { _ in
+                model.completion?()
+            }
         
         alert.addAction(action)
-        viewController?.present(alert, animated: true, completion: nil)
+        
+#if DEBUG
+        alert.view.accessibilityIdentifier = "GameResultsAlert"
+#endif
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.viewController?.present(alert, animated: true)
+        }
     }
 }
